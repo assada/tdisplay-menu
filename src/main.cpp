@@ -45,17 +45,121 @@ bool blockedButton = false;
 
 void buttonsInit();
 
+void showVoltage(void* pvParameters);
+
+void reInitButtons();
+
+void redrawMenuItems();
+
+void starsScreenTask(void* pvParameters);
+
+uint8_t za, zb, zc, zx;
+
+#define NSTARS 1024
+uint8_t sx[NSTARS] = {};
+uint8_t sy[NSTARS] = {};
+uint8_t sz[NSTARS] = {};
+
+uint8_t rng() {
+    zx++;
+    za = (za ^ zc ^ zx);
+    zb = (zb + za);
+    zc = ((zc + (zb >> 1)) ^ za);
+    return zc;
+}
+
 TaskHandle_t Task1;
 TaskHandle_t starsTask;
 
-std::vector<std::map<String, String>> newMenu = {
-    {{"title", "Info"}, {"value", ""}},
-    {{"title", "Stars"}, {"value", ""}},
-    {{"title", "Test"}, {"value", ""}},
-    {{"title", "Run"}, {"value", ""}},
-    {{"title", "Sub-Menu"}, {"value", ""}},
-    {{"title", "Menu 3"}, {"value", ""}},
-    {{"title", "Maro"}, {"value", "OFF"}},
+struct MenuItem;
+
+using MenuAction = std::function<bool(MenuItem&)>; //return true if need to redraw menu after action
+
+struct MenuItem {
+    String title;
+    std::map<String, String> parameters;
+    MenuAction onSelect;
+
+    // Конструктор
+    MenuItem(String t, std::map<String, String> params = {},
+             MenuAction onSelectFunc = nullptr)
+        : title(t), parameters(params) {
+        if (onSelectFunc != nullptr) {
+            onSelect = onSelectFunc;
+        } else {
+            onSelect = [](MenuItem& item) { // default action
+                String val = "";
+                if (item.parameters.find("value") != item.parameters.end()) {
+                    val = String(": ") + item.parameters["value"];
+                }
+                tft.drawString(item.title + val, tft.width() / 2, tft.height() / 2);
+
+                return true;
+            };
+        }
+    }
+};
+
+std::vector<MenuItem> menu = {
+    MenuItem("Info", {}, [](MenuItem&item) {
+        xTaskCreate(
+            showVoltage,
+            "infoScreen",
+            10000,
+            nullptr,
+            5,
+            &Task1
+        );
+        reInitButtons();
+
+        btnDown.setLongClickDetectedHandler([](Button2&b) {
+            vTaskDelete(Task1);
+            tft.fillScreen(TFT_BLACK);
+            buttonsInit();
+            redrawMenuItems();
+        });
+
+        return false;
+    }),
+    MenuItem("Stars", {}, [](MenuItem&item) {
+        za = random(256);
+        zb = random(256);
+        zc = random(256);
+        zx = random(256);
+        xTaskCreate(
+            starsScreenTask,
+            "starsScreen",
+            10000,
+            nullptr,
+            5,
+            &starsTask
+        );
+        reInitButtons();
+
+        btnDown.setLongClickDetectedHandler([](Button2&b) {
+            vTaskDelete(starsTask);
+            tft.fillScreen(TFT_BLACK);
+            buttonsInit();
+            redrawMenuItems();
+        });
+
+        return false;
+    }),
+    MenuItem("Test", {{"flashTime", "500"}}),
+    MenuItem("Run", {{"flashTime", "3000"}}),
+    MenuItem("Sub-Menu", {{"flashTime", "1000"}}),
+    MenuItem("Menu 3", {{"flashTime", "1000"}}),
+    MenuItem("Maro", {{"value", "OFF"}, {"flashTime", "100"}}, [](MenuItem&item) {
+        if (item.parameters["value"] == "OFF") {
+            item.parameters["value"] = "ON";
+        }
+        else {
+            item.parameters["value"] = "OFF";
+        }
+        tft.drawString(item.title + ": " + item.parameters["value"], tft.width() / 2, tft.height() / 2);
+
+        return true;
+    })
 };
 
 void espDelay(int ms) {
@@ -118,49 +222,14 @@ void redrawMenuItems() {
 
         String val = "";
 
-        if (newMenu[i]["value"] != "") {
-            val = ": " + newMenu[i]["value"];
+        if (menu[i].parameters.find("value") != menu[i].parameters.end()) {
+            val = ": " + menu[i].parameters["value"];
         }
         tft.setTextColor(TFT_LIGHTGREY);
         tft.drawString(String(i) + ". ", 5, 30 + (i % MAX_ITEMS_PER_SCREEN) * 20);
         tft.setTextColor(TFT_WHITE);
-        tft.drawString(newMenu[i]["title"] + val, 35, 30 + (i % MAX_ITEMS_PER_SCREEN) * 20);
+        tft.drawString(menu[i].title + val, 35, 30 + (i % MAX_ITEMS_PER_SCREEN) * 20);
     }
-}
-
-void infoScreen() {
-    xTaskCreate(
-        showVoltage,
-        "infoScreen",
-        10000,
-        NULL,
-        5,
-        &Task1
-    );
-    reInitButtons();
-
-    btnDown.setLongClickDetectedHandler([](Button2&b) {
-        Serial.println("Stop infoScreen");
-        vTaskDelete(Task1);
-        tft.fillScreen(TFT_BLACK);
-        buttonsInit();
-        redrawMenuItems();
-    });
-}
-
-#define NSTARS 1024
-uint8_t sx[NSTARS] = {};
-uint8_t sy[NSTARS] = {};
-uint8_t sz[NSTARS] = {};
-
-uint8_t za, zb, zc, zx;
-
-uint8_t rng() {
-    zx++;
-    za = (za ^ zc ^ zx);
-    zb = (zb + za);
-    zc = ((zc + (zb >> 1)) ^ za);
-    return zc;
 }
 
 void starsScreenTask(void* pvParameters) {
@@ -200,30 +269,6 @@ void starsScreenTask(void* pvParameters) {
     }
 }
 
-void starsScreen() {
-    za = random(256);
-    zb = random(256);
-    zc = random(256);
-    zx = random(256);
-    xTaskCreate(
-        starsScreenTask, /* Task function. */
-        "starsScreen", /* name of task. */
-        10000, /* Stack size of task */
-        NULL, /* parameter of the task */
-        5, /* priority of the task */
-        &starsTask /* Task handle to keep track of created task */
-    );
-    reInitButtons();
-
-    btnDown.setLongClickDetectedHandler([](Button2&b) {
-        Serial.println("Stop infoScreen");
-        vTaskDelete(starsTask);
-        tft.fillScreen(TFT_BLACK);
-        buttonsInit();
-        redrawMenuItems();
-    });
-}
-
 void buttonsInit() {
     reInitButtons();
 
@@ -235,37 +280,17 @@ void buttonsInit() {
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.setTextDatum(MC_DATUM);
-        bool flash = true;
-        switch (selectedMenuItem) {
-            case 0:
-                infoScreen();
-                flash = false;
-                break;
-            case 1:
-                starsScreen();
-                flash = false;
-                break;
-            case 6:
-                if (newMenu[6]["value"] == "OFF") {
-                    newMenu[6]["value"] = "ON";
-                }
-                else {
-                    newMenu[6]["value"] = "OFF";
-                }
-                tft.drawString(newMenu[6]["title"] + ": " + newMenu[6]["value"], tft.width() / 2, tft.height() / 2);
-                break;
-            default:
-                String val = "";
+        bool flash = menu[selectedMenuItem].onSelect(menu[selectedMenuItem]);
 
-                if (newMenu[selectedMenuItem]["value"] != "") {
-                    val = ": " + newMenu[selectedMenuItem]["value"];
-                }
+        int delay = 1000;
 
-                tft.drawString(newMenu[selectedMenuItem]["title"] + val, tft.width() / 2, tft.height() / 2);
-                break;
+        if(menu[selectedMenuItem].parameters.find("flashTime") != menu[selectedMenuItem].parameters.end()) {
+            String flashTime = menu[selectedMenuItem].parameters["flashTime"];
+            delay = flashTime.toInt();
         }
-        if (flash) {
-            espDelay(1000);
+
+        if (flash != false) {
+            espDelay(delay);
 
             redrawMenuItems();
         }

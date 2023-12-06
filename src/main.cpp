@@ -25,6 +25,13 @@
 #define BUTTON_1        35
 #define BUTTON_2        0
 
+#define MENU_BACKGROUND_COLOR TFT_BLACK
+#define MENU_ITEM_TEXT_COLOR TFT_WHITE
+#define MENU_ITEM_NUMBER_TEXT_COLOR TFT_LIGHTGREY
+#define MENU_ITEM_ACTIVE_BACKGROUND TFT_MAROON
+#define MENU_HEADER_TEXT_COLOR TFT_WHITE
+#define MENU_HEADER_BACKGROUND TFT_MAROON
+
 TFT_eSPI tft = TFT_eSPI(135, 240);
 Button2 btnUp;
 Button2 btnDown;
@@ -65,6 +72,10 @@ TaskHandle_t Task1;
 TaskHandle_t starsTask;
 
 MenuAction defaultAction = [](MenuItem& item) { // default action
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+
     String val = "";
     if (item.parameters.find("value") != item.parameters.end()) {
         val = String(": ") + item.parameters["value"];
@@ -88,7 +99,7 @@ std::vector<MenuItem> menuItems = {
 
         btnDown.setLongClickDetectedHandler([](Button2&b) {
             vTaskDelete(Task1);
-            tft.fillScreen(TFT_BLACK);
+            tft.fillScreen(MENU_BACKGROUND_COLOR);
             buttonsInit();
             redrawMenuItems();
         });
@@ -112,7 +123,7 @@ std::vector<MenuItem> menuItems = {
 
         btnDown.setLongClickDetectedHandler([](Button2&b) {
             vTaskDelete(starsTask);
-            tft.fillScreen(TFT_BLACK);
+            tft.fillScreen(MENU_BACKGROUND_COLOR);
             buttonsInit();
             redrawMenuItems();
         });
@@ -212,13 +223,8 @@ void buttonsInit() {
     btnUp.setLongClickDetectedHandler([](Button2&b) {
         blockedButton = true;
         Serial.println("Select Menu Item");
-        // selectedMenuItem++;
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.setTextDatum(MC_DATUM);
         bool flash = menu.items[menu.selectedMenuItem].onSelect(menu.items[menu.selectedMenuItem]);
-
-        int delay = 1000;
+        unsigned int delay = 1000;
 
         if(menu.items[menu.selectedMenuItem].parameters.find("flashTime") != menu.items[menu.selectedMenuItem].parameters.end()) {
             String flashTime = menu.items[menu.selectedMenuItem].parameters["flashTime"];
@@ -269,25 +275,25 @@ void buttonsLoop() {
 
 void redrawMenuItems() {
     //Draw Header
-    tft.fillScreen(TFT_BLACK);
-    tft.fillRect(0, 0, 240, 24, TFT_MAROON);
-    tft.setTextColor(TFT_WHITE, TFT_MAROON);
+    tft.fillScreen(MENU_BACKGROUND_COLOR);
+    tft.fillRect(0, 0, 240, 24, MENU_HEADER_BACKGROUND);
+    tft.setTextColor(MENU_HEADER_TEXT_COLOR, MENU_HEADER_BACKGROUND);
     tft.setTextDatum(TC_DATUM);
     tft.setTextSize(2);
     tft.drawString("Menu: " + String(menu.selectedMenuItem + 1) + "/" + menu.items.size(), 120, 5);
     //End Header
 
     //Draw Menu Items
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_BACKGROUND_COLOR);
     tft.setTextDatum(TL_DATUM);
     for (unsigned int i = menu.currentMenuPage * menu.maxItemsPerScreen;
          i < min((menu.currentMenuPage + 1) * menu.maxItemsPerScreen, menu.items.size()); i++) {
         if (i == menu.selectedMenuItem) {
-            tft.fillRect(0, 26 + (i % menu.maxItemsPerScreen) * 20, 240, 20, TFT_MAROON);
-            tft.setTextColor(TFT_WHITE, TFT_MAROON);
+            tft.fillRect(0, 26 + (i % menu.maxItemsPerScreen) * 20, 240, 20, MENU_ITEM_ACTIVE_BACKGROUND);
+            tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_ITEM_ACTIVE_BACKGROUND);
         }
         else {
-            tft.setTextColor(TFT_WHITE, TFT_BLACK);
+            tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_BACKGROUND_COLOR);
         }
 
         String val = "";
@@ -295,9 +301,9 @@ void redrawMenuItems() {
         if (menu.items[i].parameters.find("value") != menu.items[i].parameters.end()) {
             val = ": " + menu.items[i].parameters["value"];
         }
-        tft.setTextColor(TFT_LIGHTGREY);
+        tft.setTextColor(MENU_ITEM_NUMBER_TEXT_COLOR);
         tft.drawString(String(i+1) + ". ", 5, 30 + (i % menu.maxItemsPerScreen) * 20);
-        tft.setTextColor(TFT_WHITE);
+        tft.setTextColor(MENU_ITEM_TEXT_COLOR);
         tft.drawString(menu.items[i].title + val, 35, 30 + (i % menu.maxItemsPerScreen) * 20);
     }
 }

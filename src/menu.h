@@ -35,12 +35,12 @@ struct MenuItem {
 struct Menu {
     std::vector<MenuItem> items;
     unsigned int currentMenuPage;
-    unsigned int selectedMenuItem;
+    int selectedMenuItem;
     unsigned int maxItemsPerScreen;
 
     explicit Menu(const std::vector<MenuItem>&menuItems,
                   unsigned int currentPage = 0,
-                  unsigned int selectedItem = 0,
+                  int selectedItem = 0,
                   unsigned int maxItemsScreen = 5)
         : items(menuItems),
           currentMenuPage(currentPage),

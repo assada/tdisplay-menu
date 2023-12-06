@@ -10,6 +10,7 @@
 #include "menu.h"
 #include "utils.h"
 #include "colors.h"
+#include "stars.h"
 
 #include <vector>
 
@@ -38,25 +39,9 @@ uint32_t freeHaep();
 void buttonsInit();
 void reInitButtons();
 
-void showVoltageTask(void* pvParameters);
+void infoScreenTask(void* pvParameters);
 void starsScreenTask(void* pvParameters);
-
-uint8_t za, zb, zc, zx;
-
-#define NSTARS 1024
-uint8_t sx[NSTARS] = {};
-uint8_t sy[NSTARS] = {};
-uint8_t sz[NSTARS] = {};
-
-uint8_t rng() {
-    zx++;
-    za = (za ^ zc ^ zx);
-    zb = (zb + za);
-    zc = ((zc + (zb >> 1)) ^ za);
-    return zc;
-}
-
-TaskHandle_t Task1;
+TaskHandle_t infoTask;
 TaskHandle_t starsTask;
 
 MenuAction defaultAction = [](MenuItem& item) { // default action
@@ -78,17 +63,17 @@ Menu menu = Menu(tft);
 std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, [](MenuItem&item) {
         xTaskCreate(
-            showVoltageTask,
+            infoScreenTask,
             "infoScreen",
             10000,
             nullptr,
             5,
-            &Task1
+            &infoTask
         );
         reInitButtons();
 
         btnDown.setLongClickDetectedHandler([](Button2&b) {
-            vTaskDelete(Task1);
+            vTaskDelete(infoTask);
             tft.fillScreen(MENU_BACKGROUND_COLOR);
             buttonsInit();
             menu.redrawMenuItems();
@@ -141,23 +126,25 @@ std::vector<MenuItem> menuItems = {
     })
 };
 
-void showVoltageTask(void* pvParameters) {
+void infoScreenTask(void* pvParameters) {
     static uint64_t timeStamp = 0;
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+
     for (;;) {
         timeStamp = millis();
         uint16_t v = analogRead(ADC_PIN);
         float battery_voltage = ((float)v / 4095.0) * 2.0 * 3.3 * (vref / 1000.0);
         String voltage = "Voltage: " + String(battery_voltage) + "V";
         String freeHeap = "Free heap: " + static_cast<String>(ESP.getFreeHeap());
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextDatum(MC_DATUM);
         tft.setTextSize(2);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.drawString(voltage, tft.width() / 2, tft.height() / 2);
         tft.drawString(freeHeap, tft.width() / 2, tft.height() / 2 + 20);
         tft.drawString(String(timeStamp), tft.width() / 2, tft.height() / 2 + 40);
         tft.setTextSize(1);
         tft.drawString("Hold Down to exit", tft.width() / 2, tft.height() / 2 + 60);
-        vTaskDelay(200 / portTICK_RATE_MS);
+        vTaskDelay(10 / portTICK_RATE_MS);
     }
 }
 
@@ -259,7 +246,7 @@ void setup() {
     tft.setTextColor(TFT_WHITE);
     tft.setCursor(0, 0);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(1.8);
+    tft.setTextSize(1);
 
     menu.setItems(menuItems);
 

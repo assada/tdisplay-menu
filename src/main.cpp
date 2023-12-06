@@ -9,6 +9,7 @@
 #include "bmp.h"
 #include "menu.h"
 #include "utils.h"
+#include "colors.h"
 
 #include <vector>
 
@@ -25,32 +26,19 @@
 #define BUTTON_1        35
 #define BUTTON_2        0
 
-#define MENU_BACKGROUND_COLOR TFT_BLACK
-#define MENU_ITEM_TEXT_COLOR TFT_WHITE
-#define MENU_ITEM_NUMBER_TEXT_COLOR TFT_LIGHTGREY
-#define MENU_ITEM_ACTIVE_BACKGROUND TFT_MAROON
-#define MENU_HEADER_TEXT_COLOR TFT_WHITE
-#define MENU_HEADER_BACKGROUND TFT_MAROON
-
 TFT_eSPI tft = TFT_eSPI(135, 240);
 Button2 btnUp;
 Button2 btnDown;
+bool blockedButton = false;
 
-char buff[512];
 unsigned int vref = 1100;
 
 uint32_t freeHaep();
 
-bool blockedButton = false;
-
 void buttonsInit();
-
-void showVoltageTask(void* pvParameters);
-
 void reInitButtons();
 
-void redrawMenuItems();
-
+void showVoltageTask(void* pvParameters);
 void starsScreenTask(void* pvParameters);
 
 uint8_t za, zb, zc, zx;
@@ -85,6 +73,8 @@ MenuAction defaultAction = [](MenuItem& item) { // default action
     return true;
 };
 
+Menu menu = Menu(tft);
+
 std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, [](MenuItem&item) {
         xTaskCreate(
@@ -101,12 +91,13 @@ std::vector<MenuItem> menuItems = {
             vTaskDelete(Task1);
             tft.fillScreen(MENU_BACKGROUND_COLOR);
             buttonsInit();
-            redrawMenuItems();
+            menu.redrawMenuItems();
         });
 
         return false;
     }),
     MenuItem("Stars", {}, [](MenuItem&item) {
+        tft.fillScreen(MENU_BACKGROUND_COLOR);
         za = random(256);
         zb = random(256);
         zc = random(256);
@@ -125,7 +116,7 @@ std::vector<MenuItem> menuItems = {
             vTaskDelete(starsTask);
             tft.fillScreen(MENU_BACKGROUND_COLOR);
             buttonsInit();
-            redrawMenuItems();
+            menu.redrawMenuItems();
         });
 
         return false;
@@ -135,6 +126,9 @@ std::vector<MenuItem> menuItems = {
     MenuItem("Sub-Menu", {}, defaultAction),
     MenuItem("Menu 3", {}, defaultAction),
     MenuItem("Maro", {{"value", "OFF"}, {"flashTime", "100"}}, [](MenuItem&item) {
+        tft.fillScreen(TFT_BLACK);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
+        tft.setTextDatum(MC_DATUM);
         if (item.parameters["value"] == "OFF") {
             item.parameters["value"] = "ON";
         }
@@ -146,8 +140,6 @@ std::vector<MenuItem> menuItems = {
         return true;
     })
 };
-
-Menu menu = Menu(menuItems);
 
 void showVoltageTask(void* pvParameters) {
     static uint64_t timeStamp = 0;
@@ -219,7 +211,6 @@ void reInitButtons() {
 void buttonsInit() {
     reInitButtons();
 
-    btnUp.setLongClickTime(700);
     btnUp.setLongClickDetectedHandler([](Button2&b) {
         blockedButton = true;
         Serial.println("Select Menu Item");
@@ -234,7 +225,7 @@ void buttonsInit() {
         if (flash != false) {
             espDelay(delay);
 
-            redrawMenuItems();
+            menu.redrawMenuItems();
         }
     });
 
@@ -243,26 +234,11 @@ void buttonsInit() {
             blockedButton = false;
             return;
         }
-        Serial.println("Previous Menu Item");
-        menu.selectedMenuItem--;
-        if (menu.selectedMenuItem < 0) {
-            menu.selectedMenuItem = menu.items.size() - 1;
-        }
-        menu.currentMenuPage = menu.selectedMenuItem / menu.maxItemsPerScreen;
-        redrawMenuItems();
+        menu.up();
     });
 
     btnDown.setPressedHandler([](Button2&b) {
-        Serial.println("Next Menu Item");
-        menu.selectedMenuItem++;
-        if (menu.selectedMenuItem >= menu.items.size()) {
-            menu.selectedMenuItem = 0;
-            menu.currentMenuPage = 0;
-        }
-        else {
-            menu.currentMenuPage = menu.selectedMenuItem / menu.maxItemsPerScreen;
-        }
-        redrawMenuItems();
+        menu.down();
     });
 }
 
@@ -272,41 +248,6 @@ void buttonsLoop() {
 }
 
 // buttons end
-
-void redrawMenuItems() {
-    //Draw Header
-    tft.fillScreen(MENU_BACKGROUND_COLOR);
-    tft.fillRect(0, 0, 240, 24, MENU_HEADER_BACKGROUND);
-    tft.setTextColor(MENU_HEADER_TEXT_COLOR, MENU_HEADER_BACKGROUND);
-    tft.setTextDatum(TC_DATUM);
-    tft.setTextSize(2);
-    tft.drawString("Menu: " + String(menu.selectedMenuItem + 1) + "/" + menu.items.size(), 120, 5);
-    //End Header
-
-    //Draw Menu Items
-    tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_BACKGROUND_COLOR);
-    tft.setTextDatum(TL_DATUM);
-    for (unsigned int i = menu.currentMenuPage * menu.maxItemsPerScreen;
-         i < min((menu.currentMenuPage + 1) * menu.maxItemsPerScreen, menu.items.size()); i++) {
-        if (i == menu.selectedMenuItem) {
-            tft.fillRect(0, 26 + (i % menu.maxItemsPerScreen) * 20, 240, 20, MENU_ITEM_ACTIVE_BACKGROUND);
-            tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_ITEM_ACTIVE_BACKGROUND);
-        }
-        else {
-            tft.setTextColor(MENU_ITEM_TEXT_COLOR, MENU_BACKGROUND_COLOR);
-        }
-
-        String val = "";
-
-        if (menu.items[i].parameters.find("value") != menu.items[i].parameters.end()) {
-            val = ": " + menu.items[i].parameters["value"];
-        }
-        tft.setTextColor(MENU_ITEM_NUMBER_TEXT_COLOR);
-        tft.drawString(String(i+1) + ". ", 5, 30 + (i % menu.maxItemsPerScreen) * 20);
-        tft.setTextColor(MENU_ITEM_TEXT_COLOR);
-        tft.drawString(menu.items[i].title + val, 35, 30 + (i % menu.maxItemsPerScreen) * 20);
-    }
-}
 
 void setup() {
     Serial.begin(115200);
@@ -319,6 +260,8 @@ void setup() {
     tft.setCursor(0, 0);
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(1.8);
+
+    menu.setItems(menuItems);
 
     if (TFT_BL > 0) {
         // TFT_BL has been set in the TFT_eSPI library in the User Setup file TTGO_T_Display.h
@@ -355,7 +298,7 @@ void setup() {
         Serial.println("Default Vref: 1100mV");
     }
 
-    redrawMenuItems();
+    menu.redrawMenuItems();
 }
 
 void loop() {

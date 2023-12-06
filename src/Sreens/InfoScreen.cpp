@@ -1,61 +1,47 @@
 #include <TFT_eSPI.h>
 #include "menu.h"
 #include "esp_adc_cal.h"
-
+#include <Button2.h>
+#include "colors.h"
 
 #define ADC_EN          14
 #define ADC_PIN         34
 
-template <size_t N>
-const char* extract_type(const char (&signature)[N])
-{
-    const char* beg = signature + 42;
-    const char* end = signature + N - 2;
-
-    static char buf[N - 43];
-    char* it = buf;
-
-    for (; beg != end; ++beg, ++it)
-        *it = *beg;
-    *it = 0;
-
-    return buf;
-}
-
-template <class T>
-const char* type_name(const T&)
-{
-    return extract_type(__PRETTY_FUNCTION__);
-}
-
 class InfoScreen {
 public:
+    explicit InfoScreen(TFT_eSPI *tftDisplay, Menu *menu, Button2 *btnUp, Button2 *btnDown) {
+        this->tft = tftDisplay;
+        this->menu = menu;
+        this->btnUp = btnUp;
+        this->btnDown = btnDown;
+    }
+
     MenuAction action = [this](MenuItem &item) {
+        Serial.println("InfoScreen action");
         xTaskCreatePinnedToCore(
             this->infoScreenTask,
             "infoScreen",
             10000,
-            nullptr,
-            5,
+            this,
+            2,
             &this->infoTask,
             0
         );
-        /*reInitButtons();
+        this->menu->reInitButtons(this->btnUp, this->btnDown);
 
-        btnDown.setLongClickDetectedHandler([](Button2&b) {
-            vTaskDelete(infoTask);
+        this->btnDown->setLongClickDetectedHandler([this](Button2&b) {
+            vTaskDelete(this->infoTask);
             this->tft->fillScreen(MENU_BACKGROUND_COLOR);
-            buttonsInit();
-            menu.redrawMenuItems();
-        });*/
+            this->menu->buttonsInit(this->btnUp, this->btnDown);
+            this->menu->redrawMenuItems();
+        });
 
         return false;
     };
 
     static void infoScreenTask(void* pvParameters) {
         InfoScreen *l_pThis = (InfoScreen *) pvParameters;
-        Serial.println("InfoScreenTask started");
-        Serial.println(type_name(l_pThis->tft));
+
         static uint64_t timeStamp = 0;
         l_pThis->tft->fillScreen(TFT_BLACK);
         l_pThis->tft->setTextDatum(MC_DATUM);
@@ -77,9 +63,7 @@ public:
         }
     }
 
-    void initScreen(TFT_eSPI *tftDisplay) {
-        this->tft = tftDisplay;
-
+    void initScreen() {
         esp_adc_cal_characteristics_t adc_chars;
         esp_adc_cal_value_t val_type = esp_adc_cal_characterize( //Check type of calibration value used to characterize ADC
             (adc_unit_t)ADC_UNIT_1,
@@ -102,6 +86,10 @@ public:
     }
 private:
     TFT_eSPI *tft;
+    Menu *menu;
+    Button2 *btnDown;
+    Button2 *btnUp;
+
     TaskHandle_t infoTask;
     unsigned int vref = 1100;
 };

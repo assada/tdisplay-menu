@@ -6,6 +6,9 @@
 #include <vector>
 #include <TFT_eSPI.h>
 #include "colors.h"
+#include <Button2.h>
+#include "utils.h"
+#include "pins.h"
 
 struct MenuItem;
 
@@ -41,6 +44,7 @@ struct Menu {
     int selectedMenuItem;
     unsigned int maxItemsPerScreen;
     TFT_eSPI&tft;
+    bool blockedButton = false;
 
     explicit Menu(TFT_eSPI&tftDisplay,
                   unsigned int currentPage = 0,
@@ -110,5 +114,48 @@ struct Menu {
             tft.setTextColor(MENU_ITEM_TEXT_COLOR);
             tft.drawString(this->items[i].title + val, 35, 30 + (i % this->maxItemsPerScreen) * 20);
         }
+    }
+
+    static void reInitButtons(Button2 *btnUp, Button2 *btnDown) {
+        btnUp->reset();
+        btnDown->reset();
+        btnUp->begin(BUTTON_1);
+        btnDown->begin(BUTTON_2);
+        btnUp->setLongClickTime(700);
+        btnDown->setLongClickTime(700);
+    }
+
+    void buttonsInit(Button2 *btnUp, Button2 *btnDown) {
+        reInitButtons(btnUp, btnDown);
+
+        btnUp->setLongClickDetectedHandler([this](Button2&b) {
+            this->blockedButton = true;
+            Serial.println("Select Menu Item");
+            bool flash = this->items[this->selectedMenuItem].onSelect(this->items[this->selectedMenuItem]);
+            unsigned int delay = 1000;
+
+            if(this->items[this->selectedMenuItem].parameters.find("flashTime") != this->items[this->selectedMenuItem].parameters.end()) {
+                String flashTime = this->items[this->selectedMenuItem].parameters["flashTime"];
+                delay = flashTime.toInt();
+            }
+
+            if (flash != false) {
+                espDelay(delay);
+
+                this->redrawMenuItems();
+            }
+        });
+
+        btnUp->setReleasedHandler([this](Button2&b) {
+            if (this->blockedButton == true) {
+                this->blockedButton = false;
+                return;
+            }
+            this->up();
+        });
+
+        btnDown->setPressedHandler([this](Button2&b) {
+            this->down();
+        });
     }
 };

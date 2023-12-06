@@ -5,12 +5,13 @@
 #include "WiFi.h"
 #include <Wire.h>
 #include <Button2.h>
-#include "esp_adc_cal.h"
 #include "bmp.h"
 #include "menu.h"
 #include "utils.h"
 #include "colors.h"
 #include "stars.h"
+
+#include "Sreens/InfoScreen.cpp"
 
 #include <vector>
 
@@ -22,8 +23,6 @@
 #define TFT_SLPIN   0x10
 #endif
 
-#define ADC_EN          14
-#define ADC_PIN         34
 #define BUTTON_1        35
 #define BUTTON_2        0
 
@@ -32,17 +31,15 @@ Button2 btnUp;
 Button2 btnDown;
 bool blockedButton = false;
 
-unsigned int vref = 1100;
-
 uint32_t freeHaep();
 
 void buttonsInit();
 void reInitButtons();
 
-void infoScreenTask(void* pvParameters);
 void starsScreenTask(void* pvParameters);
-TaskHandle_t infoTask;
 TaskHandle_t starsTask;
+
+InfoScreen infoScreen = InfoScreen();
 
 MenuAction defaultAction = [](MenuItem& item) { // default action
     tft.fillScreen(TFT_BLACK);
@@ -61,26 +58,7 @@ MenuAction defaultAction = [](MenuItem& item) { // default action
 Menu menu = Menu(tft);
 
 std::vector<MenuItem> menuItems = {
-    MenuItem("Info", {}, [](MenuItem&item) {
-        xTaskCreate(
-            infoScreenTask,
-            "infoScreen",
-            10000,
-            nullptr,
-            5,
-            &infoTask
-        );
-        reInitButtons();
-
-        btnDown.setLongClickDetectedHandler([](Button2&b) {
-            vTaskDelete(infoTask);
-            tft.fillScreen(MENU_BACKGROUND_COLOR);
-            buttonsInit();
-            menu.redrawMenuItems();
-        });
-
-        return false;
-    }),
+    MenuItem("Info", {}, infoScreen.action),
     MenuItem("Stars", {}, [](MenuItem&item) {
         tft.fillScreen(MENU_BACKGROUND_COLOR);
         za = random(256);
@@ -125,28 +103,6 @@ std::vector<MenuItem> menuItems = {
         return true;
     })
 };
-
-void infoScreenTask(void* pvParameters) {
-    static uint64_t timeStamp = 0;
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextDatum(MC_DATUM);
-
-    for (;;) {
-        timeStamp = millis();
-        uint16_t v = analogRead(ADC_PIN);
-        float battery_voltage = ((float)v / 4095.0) * 2.0 * 3.3 * (vref / 1000.0);
-        String voltage = "Voltage: " + String(battery_voltage) + "V";
-        String freeHeap = "Free heap: " + static_cast<String>(ESP.getFreeHeap());
-        tft.setTextSize(2);
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.drawString(voltage, tft.width() / 2, tft.height() / 2);
-        tft.drawString(freeHeap, tft.width() / 2, tft.height() / 2 + 20);
-        tft.drawString(String(timeStamp), tft.width() / 2, tft.height() / 2 + 40);
-        tft.setTextSize(1);
-        tft.drawString("Hold Down to exit", tft.width() / 2, tft.height() / 2 + 60);
-        vTaskDelay(10 / portTICK_RATE_MS);
-    }
-}
 
 void starsScreenTask(void* pvParameters) {
     for (;;) {
@@ -248,6 +204,8 @@ void setup() {
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(1);
 
+    infoScreen.initScreen(&tft);
+
     menu.setItems(menuItems);
 
     if (TFT_BL > 0) {
@@ -264,26 +222,6 @@ void setup() {
     tft.setRotation(1);
 
     buttonsInit();
-
-    esp_adc_cal_characteristics_t adc_chars;
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize( //Check type of calibration value used to characterize ADC
-        (adc_unit_t)ADC_UNIT_1,
-        (adc_atten_t)ADC1_CHANNEL_6,
-        (adc_bits_width_t)ADC_WIDTH_BIT_12,
-        1100,
-        &adc_chars
-    );
-
-    if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-        Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
-        vref = adc_chars.vref;
-    }
-    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {
-        Serial.printf("Two Point --> coeff_a:%umV coeff_b:%umV\n", adc_chars.coeff_a, adc_chars.coeff_b);
-    }
-    else {
-        Serial.println("Default Vref: 1100mV");
-    }
 
     menu.redrawMenuItems();
 }

@@ -10,6 +10,4 @@ Video DEMO: https://www.youtube.com/watch?v=5ejPmaOgD1c
 - [ ] Sub-menu example
 - [ ] Brightness control example
 - [x] Implement a menu(items) abstraction
-
-### Issue
-cant pass TFT_eSPI as reference... 
+ 

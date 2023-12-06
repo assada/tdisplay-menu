@@ -7,10 +7,10 @@
 #include <Button2.h>
 #include "esp_adc_cal.h"
 #include "bmp.h"
+#include "menu.h"
+#include "utils.h"
 
 #include <vector>
-#include <map>
-#include <string>
 
 #ifndef TFT_DISPOFF
 #define TFT_DISPOFF 0x28
@@ -30,22 +30,15 @@ Button2 btnUp;
 Button2 btnDown;
 
 char buff[512];
-int vref = 1100;
+unsigned int vref = 1100;
 
 uint32_t freeHaep();
-
-int currentMenuPage = 0;
-int selectedMenuItem = 0; // current selected menu item
-
-const int NUM_ITEMS = 7;
-const int MAX_ITEM_LENGTH = 20;
-const int MAX_ITEMS_PER_SCREEN = 5; // maximum number of items per screen
 
 bool blockedButton = false;
 
 void buttonsInit();
 
-void showVoltage(void* pvParameters);
+void showVoltageTask(void* pvParameters);
 
 void reInitButtons();
 
@@ -71,39 +64,20 @@ uint8_t rng() {
 TaskHandle_t Task1;
 TaskHandle_t starsTask;
 
-struct MenuItem;
-
-using MenuAction = std::function<bool(MenuItem&)>; //return true if need to redraw menu after action
-
-struct MenuItem {
-    String title;
-    std::map<String, String> parameters;
-    MenuAction onSelect;
-
-    // Конструктор
-    MenuItem(String t, std::map<String, String> params = {},
-             MenuAction onSelectFunc = nullptr)
-        : title(t), parameters(params) {
-        if (onSelectFunc != nullptr) {
-            onSelect = onSelectFunc;
-        } else {
-            onSelect = [](MenuItem& item) { // default action
-                String val = "";
-                if (item.parameters.find("value") != item.parameters.end()) {
-                    val = String(": ") + item.parameters["value"];
-                }
-                tft.drawString(item.title + val, tft.width() / 2, tft.height() / 2);
-
-                return true;
-            };
-        }
+MenuAction defaultAction = [](MenuItem& item) { // default action
+    String val = "";
+    if (item.parameters.find("value") != item.parameters.end()) {
+        val = String(": ") + item.parameters["value"];
     }
+    tft.drawString(item.title + val, tft.width() / 2, tft.height() / 2);
+
+    return true;
 };
 
-std::vector<MenuItem> menu = {
+std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, [](MenuItem&item) {
         xTaskCreate(
-            showVoltage,
+            showVoltageTask,
             "infoScreen",
             10000,
             nullptr,
@@ -145,10 +119,10 @@ std::vector<MenuItem> menu = {
 
         return false;
     }),
-    MenuItem("Test", {{"flashTime", "500"}}),
-    MenuItem("Run", {{"flashTime", "3000"}}),
-    MenuItem("Sub-Menu", {{"flashTime", "1000"}}),
-    MenuItem("Menu 3", {{"flashTime", "1000"}}),
+    MenuItem("Test", {{"flashTime", "500"}}, defaultAction),
+    MenuItem("Run", {{"flashTime", "3000"}}, defaultAction),
+    MenuItem("Sub-Menu", {}, defaultAction),
+    MenuItem("Menu 3", {}, defaultAction),
     MenuItem("Maro", {{"value", "OFF"}, {"flashTime", "100"}}, [](MenuItem&item) {
         if (item.parameters["value"] == "OFF") {
             item.parameters["value"] = "ON";
@@ -162,13 +136,9 @@ std::vector<MenuItem> menu = {
     })
 };
 
-void espDelay(int ms) {
-    esp_sleep_enable_timer_wakeup(ms * 1000);
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    esp_light_sleep_start();
-}
+Menu menu = Menu(menuItems);
 
-void showVoltage(void* pvParameters) {
+void showVoltageTask(void* pvParameters) {
     static uint64_t timeStamp = 0;
     for (;;) {
         timeStamp = millis();
@@ -185,50 +155,6 @@ void showVoltage(void* pvParameters) {
         tft.setTextSize(1);
         tft.drawString("Hold Down to exit", tft.width() / 2, tft.height() / 2 + 60);
         vTaskDelay(200 / portTICK_RATE_MS);
-    }
-}
-
-void reInitButtons() {
-    btnUp.reset();
-    btnDown.reset();
-    btnUp.begin(BUTTON_1);
-    btnDown.begin(BUTTON_2);
-    btnUp.setLongClickTime(700);
-    btnDown.setLongClickTime(700);
-}
-
-void redrawMenuItems() {
-    //Draw Header
-    tft.fillScreen(TFT_BLACK);
-    tft.fillRect(0, 0, 240, 24, TFT_MAROON);
-    tft.setTextColor(TFT_WHITE, TFT_MAROON);
-    tft.setTextDatum(TC_DATUM);
-    tft.setTextSize(2);
-    tft.drawString("Menu: " + String(selectedMenuItem + 1) + "/" + String(NUM_ITEMS), 120, 5);
-    //End Header
-
-    //Draw Menu Items
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextDatum(TL_DATUM);
-    for (int i = currentMenuPage * MAX_ITEMS_PER_SCREEN;
-         i < min((currentMenuPage + 1) * MAX_ITEMS_PER_SCREEN, NUM_ITEMS); i++) {
-        if (i == selectedMenuItem) {
-            tft.fillRect(0, 26 + (i % MAX_ITEMS_PER_SCREEN) * 20, 240, 20, TFT_MAROON);
-            tft.setTextColor(TFT_WHITE, TFT_MAROON);
-        }
-        else {
-            tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        }
-
-        String val = "";
-
-        if (menu[i].parameters.find("value") != menu[i].parameters.end()) {
-            val = ": " + menu[i].parameters["value"];
-        }
-        tft.setTextColor(TFT_LIGHTGREY);
-        tft.drawString(String(i) + ". ", 5, 30 + (i % MAX_ITEMS_PER_SCREEN) * 20);
-        tft.setTextColor(TFT_WHITE);
-        tft.drawString(menu[i].title + val, 35, 30 + (i % MAX_ITEMS_PER_SCREEN) * 20);
     }
 }
 
@@ -269,6 +195,16 @@ void starsScreenTask(void* pvParameters) {
     }
 }
 
+// buttons
+void reInitButtons() {
+    btnUp.reset();
+    btnDown.reset();
+    btnUp.begin(BUTTON_1);
+    btnDown.begin(BUTTON_2);
+    btnUp.setLongClickTime(700);
+    btnDown.setLongClickTime(700);
+}
+
 void buttonsInit() {
     reInitButtons();
 
@@ -280,12 +216,12 @@ void buttonsInit() {
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.setTextDatum(MC_DATUM);
-        bool flash = menu[selectedMenuItem].onSelect(menu[selectedMenuItem]);
+        bool flash = menu.items[menu.selectedMenuItem].onSelect(menu.items[menu.selectedMenuItem]);
 
         int delay = 1000;
 
-        if(menu[selectedMenuItem].parameters.find("flashTime") != menu[selectedMenuItem].parameters.end()) {
-            String flashTime = menu[selectedMenuItem].parameters["flashTime"];
+        if(menu.items[menu.selectedMenuItem].parameters.find("flashTime") != menu.items[menu.selectedMenuItem].parameters.end()) {
+            String flashTime = menu.items[menu.selectedMenuItem].parameters["flashTime"];
             delay = flashTime.toInt();
         }
 
@@ -302,23 +238,23 @@ void buttonsInit() {
             return;
         }
         Serial.println("Previous Menu Item");
-        selectedMenuItem--;
-        if (selectedMenuItem < 0) {
-            selectedMenuItem = NUM_ITEMS - 1;
+        menu.selectedMenuItem--;
+        if (menu.selectedMenuItem < 0) {
+            menu.selectedMenuItem = menu.items.size() - 1;
         }
-        currentMenuPage = selectedMenuItem / MAX_ITEMS_PER_SCREEN;
+        menu.currentMenuPage = menu.selectedMenuItem / menu.maxItemsPerScreen;
         redrawMenuItems();
     });
 
     btnDown.setPressedHandler([](Button2&b) {
         Serial.println("Next Menu Item");
-        selectedMenuItem++;
-        if (selectedMenuItem >= NUM_ITEMS) {
-            selectedMenuItem = 0;
-            currentMenuPage = 0;
+        menu.selectedMenuItem++;
+        if (menu.selectedMenuItem >= menu.items.size()) {
+            menu.selectedMenuItem = 0;
+            menu.currentMenuPage = 0;
         }
         else {
-            currentMenuPage = selectedMenuItem / MAX_ITEMS_PER_SCREEN;
+            menu.currentMenuPage = menu.selectedMenuItem / menu.maxItemsPerScreen;
         }
         redrawMenuItems();
     });
@@ -327,6 +263,43 @@ void buttonsInit() {
 void buttonsLoop() {
     btnUp.loop();
     btnDown.loop();
+}
+
+// buttons end
+
+void redrawMenuItems() {
+    //Draw Header
+    tft.fillScreen(TFT_BLACK);
+    tft.fillRect(0, 0, 240, 24, TFT_MAROON);
+    tft.setTextColor(TFT_WHITE, TFT_MAROON);
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextSize(2);
+    tft.drawString("Menu: " + String(menu.selectedMenuItem + 1) + "/" + menu.items.size(), 120, 5);
+    //End Header
+
+    //Draw Menu Items
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+    for (unsigned int i = menu.currentMenuPage * menu.maxItemsPerScreen;
+         i < min((menu.currentMenuPage + 1) * menu.maxItemsPerScreen, menu.items.size()); i++) {
+        if (i == menu.selectedMenuItem) {
+            tft.fillRect(0, 26 + (i % menu.maxItemsPerScreen) * 20, 240, 20, TFT_MAROON);
+            tft.setTextColor(TFT_WHITE, TFT_MAROON);
+        }
+        else {
+            tft.setTextColor(TFT_WHITE, TFT_BLACK);
+        }
+
+        String val = "";
+
+        if (menu.items[i].parameters.find("value") != menu.items[i].parameters.end()) {
+            val = ": " + menu.items[i].parameters["value"];
+        }
+        tft.setTextColor(TFT_LIGHTGREY);
+        tft.drawString(String(i+1) + ". ", 5, 30 + (i % menu.maxItemsPerScreen) * 20);
+        tft.setTextColor(TFT_WHITE);
+        tft.drawString(menu.items[i].title + val, 35, 30 + (i % menu.maxItemsPerScreen) * 20);
+    }
 }
 
 void setup() {

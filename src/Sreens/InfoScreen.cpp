@@ -74,14 +74,14 @@ public:
         );
 
         if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-            Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
+            Serial.printf("Fuse Vref:%u mV\n", adc_chars.vref);
             this->vref = adc_chars.vref;
         }
         else if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {
             Serial.printf("Two Point --> coeff_a:%umV coeff_b:%umV\n", adc_chars.coeff_a, adc_chars.coeff_b);
         }
         else {
-            Serial.println("Default Vref: 1100mV");
+            Serial.println("Default Vref: 1100mV\n");
         }
     }
 private:

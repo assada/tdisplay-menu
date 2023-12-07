@@ -13,6 +13,8 @@
 
 #include <vector>
 
+#define TFT_BACKLIGHT_PIN 4
+
 #ifndef TFT_DISPOFF
 #define TFT_DISPOFF 0x28
 #endif
@@ -20,6 +22,26 @@
 #ifndef TFT_SLPIN
 #define TFT_SLPIN   0x10
 #endif
+
+// Setting PWM properties, do not change this!
+const int pwmFreq = 5000;
+const int pwmResolution = 8;
+const int pwmLedChannelTFT = 0;
+
+int ledBacklight = 100;
+
+const uint32_t NVM_Offset = 0x290000;
+
+template<typename T>
+void FlashWrite(uint32_t address, const T& value) {
+    ESP.flashEraseSector((NVM_Offset+address)/4096);
+    ESP.flashWrite(NVM_Offset+address, (uint32_t*)&value, sizeof(value));
+}
+
+template<typename T>
+void FlashRead(uint32_t address, T& value) {
+    ESP.flashRead(NVM_Offset+address, (uint32_t*)&value, sizeof(value));
+}
 
 TFT_eSPI tft = TFT_eSPI(135, 240);
 Button2 btnUp;
@@ -49,7 +71,17 @@ std::vector<MenuItem> menuItems = {
     MenuItem("Stars", {}, starsScreen.action),
     MenuItem("Test", {{"flashTime", "500"}}, defaultAction),
     MenuItem("Run", {{"flashTime", "3000"}}, defaultAction),
-    MenuItem("Sub-Menu", {}, defaultAction),
+    MenuItem("Backlight", {{"value", String(ledBacklight)}}, [](MenuItem&item) {
+        ledBacklight += 50;
+        if (ledBacklight > 255) {
+            ledBacklight = 50;
+        }
+        FlashWrite<int>(0, ledBacklight);
+        item.parameters["value"] = String(ledBacklight);
+        menu.redrawMenuItems();
+
+        return false;
+    }),
     MenuItem("Menu 3", {}, defaultAction),
     MenuItem("Maro", {{"value", "OFF"}, {"flashTime", "100"}}, [](MenuItem&item) {
         tft.fillScreen(TFT_BLACK);
@@ -74,7 +106,29 @@ void buttonsLoop() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("Start");
+    while(!Serial);
+    Serial.flush();
+    uint32_t seed = esp_random();
+    Serial.printf("Setting random seed %u\n", seed);
+
+    Serial.printf("Total heap: %d\n", ESP.getHeapSize());
+    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+    Serial.printf("Total PSRAM: %d\n", ESP.getPsramSize());
+    Serial.printf("Free PSRAM: %d\n", ESP.getFreePsram());
+
+
+    FlashRead<int>(0, ledBacklight);
+    Serial.printf("Read ledBacklight: %d\n", ledBacklight);
+    if (ledBacklight == -1) {
+        ledBacklight = 100;
+    }
+    menuItems.at(4).parameters["value"] = String(ledBacklight); //=(((
+
+    pinMode(TFT_BACKLIGHT_PIN, OUTPUT);
+    ledcSetup(pwmLedChannelTFT, pwmFreq, pwmResolution);
+    ledcAttachPin(TFT_BACKLIGHT_PIN, pwmLedChannelTFT);
+    ledcWrite(pwmLedChannelTFT, ledBacklight);
+
     tft.init();
     tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
@@ -87,11 +141,6 @@ void setup() {
     infoScreen.initScreen();
 
     menu.setItems(menuItems);
-
-    if (TFT_BL > 0) {
-        pinMode(TFT_BL, OUTPUT);
-        digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
-    }
 
     tft.setSwapBytes(true);
     tft.pushImage(0, 0, 240, 135, ttgo);
@@ -106,4 +155,5 @@ void setup() {
 
 void loop() {
     buttonsLoop();
+    ledcWrite(pwmLedChannelTFT, ledBacklight);
 }

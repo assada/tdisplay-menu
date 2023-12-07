@@ -1,7 +1,6 @@
 #pragma once
 #include <Arduino.h>
 #include <map>
-#include <map>
 #include <utility>
 #include <vector>
 #include <TFT_eSPI.h>

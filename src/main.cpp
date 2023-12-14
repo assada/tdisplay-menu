@@ -10,6 +10,7 @@
 
 #include "Sreens/InfoScreen.cpp"
 #include "Sreens/StarsScreen.cpp"
+#include "Sreens/WiFiScannerScreen.cpp"
 
 #include <vector>
 
@@ -65,11 +66,12 @@ Menu menu = Menu(tft);
 
 InfoScreen infoScreen = InfoScreen(&tft, &menu, &btnUp, &btnDown);
 StarsScreen starsScreen = StarsScreen(&tft, &menu, &btnUp, &btnDown);
+WiFiScannerScreen wiFiScannerScreen = WiFiScannerScreen(&tft, &menu, &btnUp, &btnDown);
 
 std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, infoScreen.action),
     MenuItem("Stars", {}, starsScreen.action),
-    MenuItem("Test", {{"flashTime", "500"}}, defaultAction),
+    MenuItem("WiFi Scanner", {}, wiFiScannerScreen.action),
     MenuItem("Run", {{"flashTime", "3000"}}, defaultAction),
     MenuItem("Backlight", {{"value", String(ledBacklight)}}, [](MenuItem&item) {
         ledBacklight += 50;

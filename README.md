@@ -8,6 +8,7 @@ Video DEMO: https://www.youtube.com/watch?v=5ejPmaOgD1c
 - [X] Move page handler to a separate class
 - [ ] Implement a button abstraction (reInitButtons, buttonsInit)
 - [ ] Sub-menu example
-- [ ] Brightness control example
+- [x] Brightness control example
+- [x] WiFi scan example
 - [x] Implement a menu(items) abstraction
  

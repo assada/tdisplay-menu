@@ -18,13 +18,9 @@ public:
     MenuAction action = [this](MenuItem&item) {
         this->tft->fillScreen(MENU_BACKGROUND_COLOR);
         this->mainMenu->reInitButtons(this->btnUp, this->btnDown); //reset main menu buttons
-        /*this->btnDown->setLongClickDetectedHandler([this](Button2&b) {
-            this->tft->fillScreen(MENU_BACKGROUND_COLOR);
-            this->mainMenu->buttonsInit(this->btnUp, this->btnDown);
-            this->mainMenu->redrawMenuItems();
-        });*/
 
         this->wifiScan();
+
 
         return false;
     };
@@ -39,17 +35,7 @@ private:
     Menu wifiMenu;
 
     void wifiScan() {
-        MenuAction backAction = [this](MenuItem&item) {
-            this->wifiMenu.reInitButtons(this->btnUp, this->btnDown);
-            this->mainMenu->buttonsInit(this->btnUp, this->btnDown); //enable main menu buttons
-            this->mainMenu->redrawMenuItems();
-
-            return true;
-        };
-
-        std::vector<MenuItem> menuItems = {
-            MenuItem("<< Back", {{"delayTime", "500"}}, backAction)
-        };
+        std::vector<MenuItem> menuItems = {};
 
         this->tft->setTextColor(TFT_GREEN, MENU_BACKGROUND_COLOR);
         this->tft->fillScreen(MENU_BACKGROUND_COLOR);
@@ -77,12 +63,20 @@ private:
                         "%s(%d)",
                         WiFi.SSID(i).c_str(),
                         WiFi.RSSI(i));
-                menuItems.push_back(MenuItem(buff, {}, [](MenuItem&item) { //connect to selected AP and return to main menu
+                menuItems.push_back(MenuItem(buff, {}, [](MenuItem&item) {
+                    //connect to selected AP and return to main menu
                     return false; //do nothing
                 }));
             }
             this->wifiMenu.setItems(menuItems);
             this->wifiMenu.buttonsInit(this->btnUp, this->btnDown); //start wifi menu buttons
+            this->btnDown->setLongClickDetectedHandler([this](Button2&b) {
+                this->wifiMenu.reInitButtons(this->btnUp, this->btnDown);
+
+                this->tft->fillScreen(MENU_BACKGROUND_COLOR);
+                this->mainMenu->buttonsInit(this->btnUp, this->btnDown);
+                this->mainMenu->redrawMenuItems();
+            });
             this->wifiMenu.redrawMenuItems();
         }
         WiFi.mode(WIFI_OFF);

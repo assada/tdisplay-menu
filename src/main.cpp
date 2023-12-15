@@ -73,7 +73,7 @@ std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, infoScreen.action),
     MenuItem("Stars", {}, starsScreen.action),
     MenuItem("WiFi Scanner", {}, wiFiScannerScreen.action),
-    MenuItem("Run", {{"flashTime", "500"}}, defaultAction),
+    MenuItem("Nothing", {{"flashTime", "500"}}, defaultAction),
     MenuItem("Backlight", {{"value", String(ledBacklight)}}, [](MenuItem&item) {
         ledBacklight += 50;
         if (ledBacklight > 255) {
@@ -85,7 +85,7 @@ std::vector<MenuItem> menuItems = {
 
         return false;
     }),
-    MenuItem("Menu 3", {}, defaultAction),
+    MenuItem("Nothing", {}, defaultAction),
     MenuItem("Maro", {{"value", "OFF"}, {"flashTime", "100"}}, [](MenuItem&item) {
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);

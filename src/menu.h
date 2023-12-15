@@ -127,9 +127,9 @@ struct Menu {
         btnDown->reset();
         btnUp->begin(BUTTON_1);
         btnDown->begin(BUTTON_2);
-        btnUp->setLongClickTime(700);
+        btnUp->setLongClickTime(1000);
         btnUp->setDebounceTime(50);
-        btnDown->setLongClickTime(700);
+        btnDown->setLongClickTime(1000);
         btnDown->setDebounceTime(50);
     }
 
@@ -141,8 +141,7 @@ struct Menu {
             this->blockedButton = true;
             Serial.println("Select Menu Item: " + this->title);
             bool flash = this->items[this->selectedMenuItem].onSelect(this->items[this->selectedMenuItem]);
-            unsigned int delay = 100;
-            int delayTime = 0;
+            unsigned int delay = 500;
 
             if (this->items[this->selectedMenuItem].parameters.find("flashTime") != this->items[this->selectedMenuItem].
                 parameters.end()) {
@@ -150,19 +149,11 @@ struct Menu {
                 delay = flashTime.toInt();
             }
 
-            if (this->items[this->selectedMenuItem].parameters.find("delayTime") != this->items[this->selectedMenuItem].
-                parameters.end()) {
-                delayTime = this->items[this->selectedMenuItem].parameters["delayTime"].toInt();
-            }
-
             if (flash != false) {
+                Serial.println("Delay: " + String(delay));
                 espDelay(delay);
 
                 this->redrawMenuItems();
-            }
-
-            if (delayTime > 0) {
-                espDelay(delayTime);
             }
         });
 

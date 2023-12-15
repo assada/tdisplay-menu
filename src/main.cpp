@@ -34,21 +34,22 @@ int ledBacklight = 100;
 const uint32_t NVM_Offset = 0x290000;
 
 template<typename T>
-void FlashWrite(uint32_t address, const T& value) {
-    ESP.flashEraseSector((NVM_Offset+address)/4096);
-    ESP.flashWrite(NVM_Offset+address, (uint32_t*)&value, sizeof(value));
+void FlashWrite(uint32_t address, const T&value) {
+    ESP.flashEraseSector((NVM_Offset + address) / 4096);
+    ESP.flashWrite(NVM_Offset + address, (uint32_t *)&value, sizeof(value));
 }
 
 template<typename T>
-void FlashRead(uint32_t address, T& value) {
-    ESP.flashRead(NVM_Offset+address, (uint32_t*)&value, sizeof(value));
+void FlashRead(uint32_t address, T&value) {
+    ESP.flashRead(NVM_Offset + address, (uint32_t *)&value, sizeof(value));
 }
 
 TFT_eSPI tft = TFT_eSPI(135, 240);
 Button2 btnUp;
 Button2 btnDown;
 
-MenuAction defaultAction = [](MenuItem& item) { // default action
+MenuAction defaultAction = [](MenuItem&item) {
+    // default action
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextDatum(MC_DATUM);
@@ -62,7 +63,7 @@ MenuAction defaultAction = [](MenuItem& item) { // default action
     return true;
 };
 
-Menu menu = Menu(tft);
+Menu menu = Menu(&tft);
 
 InfoScreen infoScreen = InfoScreen(&tft, &menu, &btnUp, &btnDown);
 StarsScreen starsScreen = StarsScreen(&tft, &menu, &btnUp, &btnDown);
@@ -72,7 +73,7 @@ std::vector<MenuItem> menuItems = {
     MenuItem("Info", {}, infoScreen.action),
     MenuItem("Stars", {}, starsScreen.action),
     MenuItem("WiFi Scanner", {}, wiFiScannerScreen.action),
-    MenuItem("Run", {{"flashTime", "3000"}}, defaultAction),
+    MenuItem("Run", {{"flashTime", "500"}}, defaultAction),
     MenuItem("Backlight", {{"value", String(ledBacklight)}}, [](MenuItem&item) {
         ledBacklight += 50;
         if (ledBacklight > 255) {
@@ -108,7 +109,7 @@ void buttonsLoop() {
 
 void setup() {
     Serial.begin(115200);
-    while(!Serial);
+    while (!Serial);
     Serial.flush();
     uint32_t seed = esp_random();
     Serial.printf("Setting random seed %u\n", seed);

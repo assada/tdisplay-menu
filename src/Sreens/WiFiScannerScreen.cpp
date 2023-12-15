@@ -3,41 +3,54 @@
 #include <Button2.h>
 #include "colors.h"
 #include "WiFi.h"
+#include "menu.h"
 
 class WiFiScannerScreen {
 public:
-    explicit WiFiScannerScreen(TFT_eSPI *tftDisplay, Menu *menu, Button2 *btnUp, Button2 *btnDown) {
+    explicit WiFiScannerScreen(TFT_eSPI* tftDisplay, Menu* mainMenu, Button2* btnUp, Button2* btnDown): wifiMenu(
+        tftDisplay, "WiFi") {
         this->tft = tftDisplay;
-        this->menu = menu;
+        this->mainMenu = mainMenu;
         this->btnUp = btnUp;
         this->btnDown = btnDown;
     }
 
-    MenuAction action = [this](MenuItem &item) {
+    MenuAction action = [this](MenuItem&item) {
         this->tft->fillScreen(MENU_BACKGROUND_COLOR);
-        this->menu->reInitButtons(this->btnUp, this->btnDown);
-
-        this->btnDown->setLongClickDetectedHandler([this](Button2&b) {
+        this->mainMenu->reInitButtons(this->btnUp, this->btnDown); //reset main menu buttons
+        /*this->btnDown->setLongClickDetectedHandler([this](Button2&b) {
             this->tft->fillScreen(MENU_BACKGROUND_COLOR);
-            this->menu->buttonsInit(this->btnUp, this->btnDown);
-            this->menu->redrawMenuItems();
-        });
+            this->mainMenu->buttonsInit(this->btnUp, this->btnDown);
+            this->mainMenu->redrawMenuItems();
+        });*/
 
         this->wifiScan();
 
         return false;
     };
 
-
 private:
-    TFT_eSPI *tft;
-    Menu *menu;
-    Button2 *btnDown;
-    Button2 *btnUp;
+    TFT_eSPI* tft;
+    Menu* mainMenu;
+    Button2* btnDown;
+    Button2* btnUp;
     char buff[512];
 
-    void wifiScan()
-    {
+    Menu wifiMenu;
+
+    void wifiScan() {
+        MenuAction backAction = [this](MenuItem&item) {
+            this->wifiMenu.reInitButtons(this->btnUp, this->btnDown);
+            this->mainMenu->buttonsInit(this->btnUp, this->btnDown); //enable main menu buttons
+            this->mainMenu->redrawMenuItems();
+
+            return true;
+        };
+
+        std::vector<MenuItem> menuItems = {
+            MenuItem("<< Back", {{"delayTime", "500"}}, backAction)
+        };
+
         this->tft->setTextColor(TFT_GREEN, MENU_BACKGROUND_COLOR);
         this->tft->fillScreen(MENU_BACKGROUND_COLOR);
         this->tft->setTextDatum(MC_DATUM);
@@ -55,17 +68,22 @@ private:
         this->tft->fillScreen(MENU_BACKGROUND_COLOR);
         if (n == 0) {
             this->tft->drawString("no networks found", this->tft->width() / 2, this->tft->height() / 2);
-        } else {
+        }
+        else {
             this->tft->setTextDatum(TL_DATUM);
             this->tft->setCursor(0, 0);
             for (int i = 0; i < n; ++i) {
                 sprintf(this->buff,
-                        "[%d]:%s(%d)",
-                        i + 1,
+                        "%s(%d)",
                         WiFi.SSID(i).c_str(),
                         WiFi.RSSI(i));
-                this->tft->println(buff);
+                menuItems.push_back(MenuItem(buff, {}, [](MenuItem&item) { //connect to selected AP and return to main menu
+                    return false; //do nothing
+                }));
             }
+            this->wifiMenu.setItems(menuItems);
+            this->wifiMenu.buttonsInit(this->btnUp, this->btnDown); //start wifi menu buttons
+            this->wifiMenu.redrawMenuItems();
         }
         WiFi.mode(WIFI_OFF);
     }

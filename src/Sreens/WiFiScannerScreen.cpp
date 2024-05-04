@@ -32,7 +32,47 @@ private:
     Button2* btnUp;
     char buff[512];
 
+    String ssid;
+    TaskHandle_t connectTask;
+
     Menu wifiMenu;
+
+    static void tryConnectTask (void* pvParameters) {
+        WiFiScannerScreen *l_pThis = (WiFiScannerScreen *) pvParameters;
+
+        for(;;) {
+            WiFi.mode(WIFI_STA);
+            WiFi.begin(l_pThis->ssid.c_str(), "qqqq1111");
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->setTextColor(TFT_WHITE, MENU_BACKGROUND_COLOR);
+            l_pThis->tft->setTextDatum(MC_DATUM);
+            l_pThis->tft->drawString("Connecting to " + l_pThis->ssid, l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            while (WiFi.status() != WL_CONNECTED) {
+                delay(500);
+                l_pThis->tft->drawString(".", 10, l_pThis->tft->height() / 2);
+            }
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("Connected to " + l_pThis->ssid, l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            delay(1000);
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("IP: " + WiFi.localIP().toString(), l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            delay(1000);
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("Subnet: " + WiFi.subnetMask().toString(), l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            delay(1000);
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("Gateway: " + WiFi.gatewayIP().toString(), l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            delay(1000);
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("DNS: " + WiFi.dnsIP().toString(), l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            delay(1000);
+            l_pThis->tft->fillScreen(MENU_BACKGROUND_COLOR);
+            l_pThis->tft->drawString("MAC: " + WiFi.macAddress(), l_pThis->tft->width() / 2, l_pThis->tft->height() / 2);
+            WiFi.disconnect();
+            vTaskDelete(l_pThis->connectTask);
+            break;
+        }
+    }
 
     void wifiScan() {
         std::vector<MenuItem> menuItems = {};
@@ -63,8 +103,17 @@ private:
                         "%s(%d)",
                         WiFi.SSID(i).c_str(),
                         WiFi.RSSI(i));
-                menuItems.push_back(MenuItem(buff, {}, [](MenuItem&item) {
-                    //connect to selected AP and return to main menu
+                menuItems.push_back(MenuItem(buff, {{"ssid", WiFi.SSID(i).c_str()}}, [this](MenuItem&item) {
+                    this->ssid = item.parameters["ssid"];
+                    xTaskCreatePinnedToCore(
+                        this->tryConnectTask,
+                        "infoScreen",
+                        10000,
+                        this,
+                        2,
+                        &this->connectTask,
+                        0
+                    );
                     return false; //do nothing
                 }));
             }

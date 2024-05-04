@@ -61,7 +61,7 @@ public:
 
             potValue_filtered = EMA_filter(potValue);
 
-            int menuItem = (potValue_filtered * MAX_MENU_ITEMS) / 4096;
+            int menuItem = (potValue * MAX_MENU_ITEMS) / 4096;
 
             if (menuItem >= MAX_MENU_ITEMS) {
                 menuItem = MAX_MENU_ITEMS - 1;

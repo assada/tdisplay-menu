@@ -161,4 +161,5 @@ void setup() {
 void loop() {
     buttonsLoop();
     ledcWrite(pwmLedChannelTFT, ledBacklight);
+    menu.readPot();
 }

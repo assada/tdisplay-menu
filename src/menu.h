@@ -9,6 +9,8 @@
 #include "utils.h"
 #include "pins.h"
 
+#include <EMA.h>
+
 struct MenuItem;
 
 /**
@@ -45,6 +47,8 @@ struct Menu {
     TFT_eSPI* tft;
     bool blockedButton = false;
     String title;
+    int potMenu = 0;
+    
 
     explicit Menu(TFT_eSPI* tftDisplay,
                   String title = "Menu",
@@ -81,6 +85,35 @@ struct Menu {
             this->currentMenuPage = this->selectedMenuItem / this->maxItemsPerScreen;
         }
         this->redrawMenuItems();
+    }
+
+    void readPot()
+    {
+
+        static EMA<2> EMA_filter(250);
+
+        int potValue = EMA_filter(analogRead(38));
+
+        int menuItem = (potValue * this->items.size()) / 4096;
+
+        if (menuItem >= this->items.size()) {
+            menuItem = this->items.size() - 1;
+        }
+
+        // menuItem = menuItem + 1;
+
+
+        if (menuItem != this->potMenu) {
+
+            if (menuItem < this->potMenu) {
+                this->up();
+            }
+            else if (menuItem > this->potMenu) {
+                this->down();
+            }
+
+            this->potMenu = menuItem;
+        }
     }
 
     void redrawMenuItems() {
